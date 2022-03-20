@@ -1,0 +1,158 @@
+import java.util.*;
+import java.util.regex.Pattern;
+
+/**
+ * https://codingdojo.org/kata/Args/
+ * 大概就是写一个参数处理器
+ */
+public class Main {
+
+    public static void main(String[] args) {
+        System.out.println(Arrays.toString(args));
+
+        // 解析好所有参数
+        SignManager signManager = new SignManager(args);
+        // 当我想要端口号信息时：
+        System.out.println("1." + signManager.get(SignEnum.PORT.signName));
+        // 当我想要日志选项信息时：
+        System.out.println("2." + signManager.get(SignEnum.LOG.signName));
+        // 当我想要一个类表类型的参数信息时：
+        System.out.println("3." + signManager.get(SignEnum.DIRECTORY.signName));
+        // 当我想要一个类表类型的参数信息时：
+        System.out.println("4." + signManager.get("-ss"));
+        System.out.println("5." + signManager.get("-i"));
+    }
+
+    @SuppressWarnings("unchecked")
+    static class SignManager {
+        private final Map<String, Sign> signMap = new HashMap<>();
+
+        SignManager(String[] args) {
+            Sign sign = null;
+            SignEnum currentSignType = null;
+            for (String currentArg : args) {
+                if (currentArg.contains("-") && !isNumber(currentArg)) {
+                    currentSignType = SignEnum.getBySignName(currentArg);
+                    if (Objects.isNull(currentSignType)) {
+                        System.out.println(ExceptionMessage.ARG_TYPE_NOT_FOUND + ":" + currentArg);
+                        continue;
+                    }
+                    Object defaultValue = currentSignType.defaultValue;
+                    sign = new Sign(currentArg);
+                    if (!Objects.isNull(defaultValue)) {
+                        sign.params = defaultValue;
+                    }
+                    signMap.put(currentArg, sign);
+                } else if (!Objects.isNull(currentSignType)) {
+                    Object param = currentSignType.cast(currentArg);
+                    if (currentSignType.isList) {
+                        if (Objects.isNull(sign.params)) {
+                            List<Object> params = new ArrayList<>();
+                            params.add(param);
+                            sign.params = params;
+                        } else {
+                            List<Object> params = (List<Object>) sign.params;
+                            try {
+                                params.add(param);
+                            } catch (ClassCastException e) {
+                                System.out.println(currentSignType.signName + "的参数类型不正确，应该是：" + currentSignType.type.getName());
+                            }
+                        }
+                    } else {
+                        sign.params = param;
+                    }
+                }
+            }
+        }
+
+        Sign get(String signName) {
+            Sign sign = this.signMap.get(signName);
+            if (Objects.isNull(sign)) {
+                SignEnum signEnum = SignEnum.getBySignName(signName);
+                if (Objects.isNull(signEnum)) {
+                    System.out.println(ExceptionMessage.ARG_TYPE_NOT_FOUND + ":" + signName);
+                    return null;
+                }
+                sign = new Sign(signName);
+                sign.params = signEnum.defaultValue;
+            }
+            return sign;
+        }
+    }
+
+    // 当我需要新的类型的参数时，增加枚举即可
+    enum SignEnum {
+        LOG("-l", Boolean.class, false, false, false),
+        PORT("-p", Integer.class, true, false, null),
+        INT_LIST("-i", Integer.class, true, true, null),
+        DIRECTORY("-d", String.class, true, true, null);
+        final String signName;
+        final Class type;
+        final Boolean hasParams;
+        final Boolean isList;
+        final Object defaultValue;
+
+        SignEnum(String signName, Class type, Boolean hasParams, Boolean isList, Object defaultValue) {
+            this.signName = signName;
+            this.type = type;
+            this.hasParams = hasParams;
+            this.isList = isList;
+            this.defaultValue = defaultValue;
+        }
+
+        static SignEnum getBySignName(String signName) {
+            for (int i = 0; i < SignEnum.values().length; i++) {
+                if (SignEnum.values()[i].signName.equalsIgnoreCase(signName)) {
+                    return SignEnum.values()[i];
+                }
+            }
+            return null;
+        }
+
+        Object cast(String s) {
+            try {
+                if (type.equals(Integer.class)) {
+                    return Integer.valueOf(s);
+                } else if (type.equals(Boolean.class)) {
+                    return Boolean.valueOf(s);
+                } else if (type.equals(String.class)) {
+                    return s;
+                } else {
+                    System.out.println(ExceptionMessage.TYPE_ERROR + ":" + s);
+                }
+            } catch (ClassCastException e) {
+                System.out.println(ExceptionMessage.TYPE_ERROR + ":" + s);
+            }
+            return null;
+        }
+    }
+
+    interface ExceptionMessage {
+        String ARG_TYPE_NOT_FOUND = "参数类型不存在";
+        String TYPE_ERROR = "类型不正确";
+    }
+
+    static class Sign {
+        String name;
+        Object params;
+
+        Sign(String name) {
+            this.name = name;
+        }
+
+        public String toString() {
+            return "name:" + name +
+                    ",paramsType:" + (Objects.isNull(params) ? "null" : params.getClass().getSimpleName()) +
+                    ",paramsValue:" + params;
+        }
+
+    }
+
+    public static boolean isNumber(String string) {
+        if (string == null) return false;
+        return Pattern.compile("^-?\\d+(\\.\\d+)?$")
+                .matcher(string)
+                .matches();
+    }
+
+}
